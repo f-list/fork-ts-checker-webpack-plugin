@@ -1,5 +1,4 @@
 import os from 'os';
-import fs from 'fs-extra';
 import { codeFrameColumns } from '@babel/code-frame';
 import { Formatter } from './Formatter';
 import { createBasicFormatter } from './BasicFormatter';
@@ -9,11 +8,9 @@ function createCodeFrameFormatter(options?: BabelCodeFrameOptions): Formatter {
   const basicFormatter = createBasicFormatter();
 
   return function codeFrameFormatter(issue) {
-    const source = issue.file && fs.existsSync(issue.file) && fs.readFileSync(issue.file, 'utf-8');
-
     let frame = '';
-    if (source && issue.location) {
-      frame = codeFrameColumns(source, issue.location, {
+    if (issue.file && issue.location && issue.source) {
+      frame = codeFrameColumns(issue.source, issue.location, {
         highlightCode: true,
         ...(options || {}),
       })

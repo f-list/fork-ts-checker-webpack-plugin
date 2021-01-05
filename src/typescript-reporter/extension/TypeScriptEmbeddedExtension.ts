@@ -7,11 +7,46 @@ import { Dependencies } from '../../reporter';
 interface TypeScriptEmbeddedSource {
   sourceText: string;
   extension: '.ts' | '.tsx' | '.js';
+  realEnd?: number;
 }
 
 interface TypeScriptEmbeddedExtensionHost {
   embeddedExtensions: string[];
   getEmbeddedSource(fileName: string): TypeScriptEmbeddedSource | undefined;
+}
+
+type ExtendedSource = ts.SourceFile & { realEnd?: number };
+
+function setupSourceFile(file: ExtendedSource) {
+  if (!file.fileName.endsWith('.vue.ts') || file.realEnd !== undefined) return;
+
+  function iterate(node: ts.Node, assertions: ts.Expression[]) {
+    if (ts.isConditionalExpression(node)) {
+      iterate(node.whenTrue, assertions.concat(node.condition));
+      iterate(node.whenFalse, assertions.concat(ts.createLogicalNot(node.condition)));
+      return;
+    }
+    if ((ts.isFunctionExpression(node) || ts.isArrowFunction(node)) && assertions.length) {
+      const cond = ts.createIf(
+        ts.createLogicalNot(
+          assertions
+            .map((x) => JSON.parse(JSON.stringify(x)))
+            .reduce((x, y) =>
+              ts.createBinary(x, ts.createToken(ts.SyntaxKind.AmpersandAmpersandToken), y)
+            )
+        ),
+        ts.createThrow(ts.createLiteral(''))
+      );
+      if (ts.isBlock(node.body))
+        ((node.body.statements as unknown) as ts.Statement[]).unshift(cond);
+      else node.body = ts.createBlock([cond, ts.createReturn(node.body)]);
+    }
+    ts.forEachChild(node, (x) => iterate(x, assertions));
+  }
+  ts.forEachChild(
+    file,
+    (x) => ts.isFunctionDeclaration(x) && x.name?.escapedText === 'render' && iterate(x, [])
+  );
 }
 
 /**
@@ -83,6 +118,31 @@ function createTypeScriptEmbeddedExtension({
     };
   }
 
+  type GetSourceFile<T extends unknown[]> = (x: string, ...args: T) => ts.SourceFile | undefined;
+  function createEmbeddedGetSourceFile<T extends unknown[]>(
+    getSourceFile: GetSourceFile<T>
+  ): GetSourceFile<T> {
+    return function embeddedGetSourceFile(fileName: string, ...args) {
+      const source = getSourceFile(fileName, ...args) as ExtendedSource;
+      if (!source) return source;
+      const { embeddedExtension, embeddedFileName, extension } = parsePotentiallyEmbeddedFileName(
+        fileName
+      );
+
+      if (embeddedExtensions.includes(embeddedExtension)) {
+        const embeddedSource = getCachedEmbeddedSource(embeddedFileName);
+
+        if (embeddedSource && embeddedSource.extension === extension) {
+          if (embeddedSource.realEnd !== undefined) {
+            setupSourceFile(source);
+          }
+          source.realEnd = embeddedSource.realEnd;
+        }
+      }
+      return source;
+    };
+  }
+
   return {
     extendIssues(issues: Issue[]): Issue[] {
       return issues.map((issue) => {
@@ -125,6 +185,11 @@ function createTypeScriptEmbeddedExtension({
         },
         readFile: createEmbeddedReadFile(host.readFile),
         fileExists: createEmbeddedFileExists(host.fileExists),
+        createProgram: function (rootNames, options, c, ...args) {
+          if (c && c.getSourceFileByPath)
+            c.getSourceFileByPath = createEmbeddedGetSourceFile(c.getSourceFileByPath);
+          return host.createProgram(rootNames, options, c, ...args);
+        },
       };
     },
     extendCompilerHost(host) {
@@ -132,6 +197,7 @@ function createTypeScriptEmbeddedExtension({
         ...host,
         readFile: createEmbeddedReadFile(host.readFile),
         fileExists: createEmbeddedFileExists(host.fileExists),
+        getSourceFile: createEmbeddedGetSourceFile(host.getSourceFile),
       };
     },
     extendParseConfigFileHost<THost extends ts.ParseConfigFileHost>(host: THost): THost {

@@ -49,7 +49,7 @@ describe('eslint-reporter/issue/EsLintIssueFactory', () => {
   const ES_LINT_RESULTS = [ES_LINT_RESULT_INDEX, ES_LINT_RESULT_ANOTHER, ES_LINT_RESULT_ADDITIONAL];
 
   it.each([[ES_LINT_RESULTS]])('creates Issues from EsLint Results: %p', (results) => {
-    const issues = createIssuesFromEsLintResults(results);
+    const issues = createIssuesFromEsLintResults(results, false);
 
     expect(issues).toMatchSnapshot();
   });

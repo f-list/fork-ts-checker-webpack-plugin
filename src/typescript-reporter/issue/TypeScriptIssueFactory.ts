@@ -4,10 +4,12 @@ import { deduplicateAndSortIssues, Issue, IssueLocation } from '../../issue';
 
 function createIssueFromTsDiagnostic(typescript: typeof ts, diagnostic: ts.Diagnostic): Issue {
   let file: string | undefined;
+  let source: string | undefined;
   let location: IssueLocation | undefined;
 
   if (diagnostic.file) {
     file = diagnostic.file.fileName;
+    source = diagnostic.file.getFullText();
 
     if (diagnostic.start && diagnostic.length) {
       const {
@@ -39,6 +41,7 @@ function createIssueFromTsDiagnostic(typescript: typeof ts, diagnostic: ts.Diagn
     severity: diagnostic.category === 0 ? 'warning' : 'error',
     message: typescript.flattenDiagnosticMessageText(diagnostic.messageText, os.EOL),
     file,
+    source,
     location,
   };
 }

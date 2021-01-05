@@ -1,34 +1,22 @@
 import * as os from 'os';
-import mockFs from 'mock-fs';
 import { Issue } from 'lib/issue';
 import { createFormatter, FormatterType } from 'lib/formatter';
 
 describe('formatter/FormatterFactory', () => {
-  beforeEach(() => {
-    mockFs({
-      some: {
-        'file.ts': [
-          'class SomeClass {',
-          '  private someProperty: boolean;',
-          '  constructor() {',
-          "    console.log('anything special');",
-          '  }',
-          '}',
-        ].join('\n'),
-      },
-    });
-  });
-
-  afterEach(() => {
-    mockFs.restore();
-  });
-
   const issue: Issue = {
     origin: 'typescript',
     severity: 'error',
     code: 'TS123',
     message: 'Some issue content',
     file: 'some/file.ts',
+    source: [
+      'class SomeClass {',
+      '  private someProperty: boolean;',
+      '  constructor() {',
+      "    console.log('anything special');",
+      '  }',
+      '}',
+    ].join('\n'),
     location: {
       start: {
         line: 1,

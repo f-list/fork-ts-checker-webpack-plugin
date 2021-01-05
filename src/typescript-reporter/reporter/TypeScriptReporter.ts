@@ -463,7 +463,16 @@ function createTypeScriptReporter(configuration: TypeScriptReporterConfiguration
           diagnosticsPerProject.forEach((projectDiagnostics) => {
             diagnostics.push(...projectDiagnostics);
           });
-          let issues = createIssuesFromTsDiagnostics(typescript, diagnostics);
+          let issues = createIssuesFromTsDiagnostics(
+            typescript,
+            diagnostics.filter((x) => {
+              const realEnd = (x.file as ts.SourceFile & { realEnd: number }).realEnd;
+              if (realEnd && x.start && x.start > realEnd) {
+                return x.code !== 6133 && x.code !== 7006;
+              }
+              return true;
+            })
+          );
 
           extensions.forEach((extension) => {
             if (extension.extendIssues) {

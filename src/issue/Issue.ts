@@ -8,6 +8,7 @@ interface Issue {
   message: string;
   file?: string;
   location?: IssueLocation;
+  source?: string;
 }
 
 function isIssue(value: unknown): value is Issue {

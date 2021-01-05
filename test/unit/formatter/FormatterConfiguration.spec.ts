@@ -1,34 +1,22 @@
 import os from 'os';
-import mockFs from 'mock-fs';
 import { Issue } from 'lib/issue';
 import { createFormatterConfiguration, FormatterOptions } from 'lib/formatter';
 
 describe('formatter/FormatterConfiguration', () => {
-  beforeEach(() => {
-    mockFs({
-      src: {
-        'index.ts': [
-          'const foo: number = "1";',
-          'const bar = 1;',
-          '',
-          'function baz() {',
-          '  console.log(baz);',
-          '}',
-        ].join('\n'),
-      },
-    });
-  });
-
-  afterEach(() => {
-    mockFs.restore();
-  });
-
   const issue: Issue = {
     origin: 'typescript',
     severity: 'error',
     code: 'TS2322',
     message: `Type '"1"' is not assignable to type 'number'.`,
     file: 'src/index.ts',
+    source: [
+      'const foo: number = "1";',
+      'const bar = 1;',
+      '',
+      'function baz() {',
+      '  console.log(baz);',
+      '}',
+    ].join('\n'),
     location: {
       start: {
         line: 1,

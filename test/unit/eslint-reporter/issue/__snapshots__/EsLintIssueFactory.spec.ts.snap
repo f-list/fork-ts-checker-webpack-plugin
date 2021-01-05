@@ -18,6 +18,7 @@ Array [
     "message": "'y' is assigned a value but never used.",
     "origin": "eslint",
     "severity": "error",
+    "source": "",
   },
   Object {
     "code": "no-unused-vars",
@@ -35,6 +36,7 @@ Array [
     "message": "'y' is assigned a value but never used.",
     "origin": "eslint",
     "severity": "warning",
+    "source": "",
   },
   Object {
     "code": "no-unused-vars",
@@ -52,6 +54,7 @@ Array [
     "message": "'y' is assigned a value but never used.",
     "origin": "eslint",
     "severity": "error",
+    "source": "",
   },
 ]
 `;

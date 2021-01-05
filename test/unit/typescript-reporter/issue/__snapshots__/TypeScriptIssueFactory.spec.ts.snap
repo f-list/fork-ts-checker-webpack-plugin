@@ -18,6 +18,7 @@ Array [
     "message": "Cannot assign string to the number type",
     "origin": "typescript",
     "severity": "error",
+    "source": "",
   },
   Object {
     "code": "TS1221",
@@ -26,6 +27,7 @@ Array [
     "message": "Cannot assign object to the string type",
     "origin": "typescript",
     "severity": "warning",
+    "source": undefined,
   },
   Object {
     "code": "TS1221",
@@ -43,6 +45,7 @@ Array [
     "message": "Cannot assign object to the string type",
     "origin": "typescript",
     "severity": "warning",
+    "source": "",
   },
 ]
 `;

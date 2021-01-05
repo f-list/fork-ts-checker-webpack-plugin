@@ -34,7 +34,12 @@ function tapAfterCompileToGetIssues(
     }
 
     // filter list of issues by provided issue predicate
-    issues = issues.filter(configuration.issue.predicate);
+    issues = issues.filter(
+      (x) =>
+        configuration.issue.predicate(x) &&
+        x.file &&
+        compilation.fileDependencies.has(path.normalize(x.file))
+    );
 
     // modify list of issues in the plugin hooks
     issues = hooks.issues.call(issues, compilation);

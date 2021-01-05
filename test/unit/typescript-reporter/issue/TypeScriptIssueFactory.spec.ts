@@ -14,6 +14,7 @@ describe('typescript-reporter/issue/TypeScriptIssueFactory', () => {
         line: 2,
         character: 2 + Math.max(0, position - 100),
       }),
+      getFullText: () => '',
     },
   };
   const TS_DIAGNOSTIC_ERROR = {
@@ -28,6 +29,7 @@ describe('typescript-reporter/issue/TypeScriptIssueFactory', () => {
         line: 5 + Math.max(0, position - 12),
         character: 10 + Math.max(0, position - 12),
       }),
+      getFullText: () => '',
     },
   };
   const TS_DIAGNOSTIC_WITHOUT_FILE = {

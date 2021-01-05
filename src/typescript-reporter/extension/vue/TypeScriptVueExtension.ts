@@ -101,29 +101,107 @@ function createTypeScriptVueExtension(
 
     const compiler = loadVueTemplateCompiler();
     const vueSourceText = fs.readFileSync(fileName, { encoding: 'utf-8' });
+    const cls = vueSourceText.match(/export\s+default\s+class\s+(\w+)/i)?.[1];
 
     let script: GenericScriptSFCBlock | undefined;
+    let template: string | undefined;
     if (isVueTemplateCompilerV2(compiler)) {
       const parsed = compiler.parseComponent(vueSourceText, {
         pad: 'space',
       });
 
       script = parsed.script;
+      if (parsed.template) {
+        const compiled = require('@vue/component-compiler-utils').compileTemplate({
+          source: parsed.template.content,
+          compiler: compiler,
+          isFunctional: parsed.template.attrs.functional,
+        }).code;
+        const fakeFuncs = `{_e: () => __fakeVue.VNode,
+          _v: (x: string) => __fakeVue.VNode,
+          _s: (x: any) => string,
+          _n: (x: string) => string | number,
+          _u: (x: ({key: string, fn: __fakeVNode.ScopedSlot, proxy?: boolean} | null)[], b?: any, c?: boolean, d?: number) => {[key: string]: __fakeVNode.ScopedSlot},
+          _i: <T>(x: ReadonlyArray<T>, y: T) => number,
+          _q: (x: any, y: any) => boolean,
+          _m: (x: number, y?: boolean) => __fakeVue.VNodeChildrenArrayContents,
+          _k: (a: number, b: string, c: number, d: string, e: string | ReadonlyArray<string>) => boolean,
+          _o: (a: __fakeVue.VNodeChildrenArrayContents | __fakeVue.VNode, b: number, c: string | number),
+          _t: (a?: string, b?: __fakeVue.VNodeChildrenArrayContents | null, c?: any, d?: any) => __fakeVue.VNode,
+          _b: (a: __fakeVue.VNodeData, b: 'tag', c: __fakeVue.VNodeData, d: boolean, e?: boolean) => __fakeVue.VNodeData,
+          _l: (<T, U>(x: Iterable<[T, U]> | undefined, y: (a: U, b: T) => __fakeVue.VNode | __fakeVue.VNode[] | void) => __fakeVue.VNode[])
+            & (<T>(x: Iterable<T> | undefined, y: (a: T, b: number) => __fakeVue.VNode | __fakeVue.VNode[] | void) => __fakeVue.VNode[])
+            & (<T, K extends keyof T>(x: T, y: (a: T[K], b: K, c: number) => __fakeVue.VNode | __fakeVue.VNode[] | void) => __fakeVue.VNode[])},
+          _c: ((<T extends keyof HTMLElementTagNameMap>(a: T, b: __ElementVNodeData<T, {target: HTMLElementTagNameMap[T] & {composing: boolean}}>, c?: __fakeVue.VNodeChildrenArrayContents, d?: number) => __fakeVue.VNode) &
+            ((a:string | __fakeVue.Component, c?: __fakeVue.VNodeChildrenArrayContents, d?: number) => __fakeVue.VNode) & (<T>(a:string | __fakeVue.Component, b: __VNodeData<T>, c?: __fakeVue.VNodeChildrenArrayContents, d?: number) => __fakeVue.VNode))`;
+
+        template = `\nimport * as __fakeVue from 'vue';
+          import * as __fakeVNode from 'vue/types/vnode';
+          interface __VNodeData<T> extends __fakeVue.VNodeData {
+            model?: {value: T, callback(t: T):void, expression: string},
+            directives?: any[]
+          }
+          type __ElementVNodeData<T, E> = __VNodeData<T> & {on?: {[key in keyof HTMLElementEventMap]?: ((e: HTMLElementEventMap[key] & E) => void)[] | ((e: HTMLElementEventMap[key] & E) => void)}}`;
+
+        if (parsed.template.attrs.functional) {
+          template += `function __fakeRender(_h: Vue.CreateElement, _vm: Vue.RenderContext<${cls}> & ${fakeFuncs}){${compiled.code.substring(
+            compiled.code.indexOf('return'),
+            compiled.code.lastIndexOf('var staticRenderFns =')
+          )}}`;
+        } else {
+          template += `function __fakeRender(this: ${cls} & ${fakeFuncs}){var _vm = this;${compiled.code.substring(
+            compiled.code.indexOf('return'),
+            compiled.code.lastIndexOf('var staticRenderFns =')
+          )}}`;
+        }
+      }
     } else if (isVueTemplateCompilerV3(compiler)) {
       const parsed = compiler.parse(vueSourceText);
-
-      if (parsed.descriptor && parsed.descriptor.script) {
-        const scriptV3 = parsed.descriptor.script;
-
-        // map newer version of SFCScriptBlock to the generic one
-        script = {
-          content: scriptV3.content,
-          attrs: scriptV3.attrs,
-          start: scriptV3.loc.start.offset,
-          end: scriptV3.loc.end.offset,
-          lang: scriptV3.lang,
-          src: scriptV3.src,
-        };
+      if (parsed.descriptor) {
+        let bindings: object | undefined;
+        if (parsed.descriptor.script || parsed.descriptor.scriptSetup) {
+          const scriptV3 = compiler.compileScript(parsed.descriptor, {
+            id: 'stub',
+            babelParserPlugins: ['classProperties'],
+          });
+          bindings = scriptV3.bindings;
+          // map newer version of SFCScriptBlock to the generic one
+          script = {
+            content: scriptV3.content,
+            attrs: scriptV3.attrs,
+            start: scriptV3.loc.start.offset,
+            end: scriptV3.loc.end.offset,
+            lang: scriptV3.lang,
+            src: scriptV3.src,
+          };
+        }
+        if (parsed.descriptor.template) {
+          template = compiler.compileTemplate({
+            id: 'stub',
+            source: parsed.descriptor.template.content,
+            compilerOptions: { bindingMetadata: bindings },
+          }).code;
+          if (parsed.descriptor.scriptSetup) {
+            template = template.replace(
+              'export function render(_ctx, _cache, $props, $setup, $data, $options)',
+              `import {Slots as __Slots} from 'vue';
+                        type __Props = Parameters<typeof setup> extends [infer T] ? T : void;
+                        export function render(_ctx: {$slots: __Slots}, _cache: void, $props: __Props, $setup: ReturnType<typeof setup>, $data: void, $options: void)`
+            );
+          } else {
+            template = template
+              .replace(
+                'export function render(_ctx, _cache, $props, $setup, $data, $options)',
+                `export function render(_ctx: ${cls}, _cache: Function[], $props: void, $setup: void, $data: void, $options: void)`
+              )
+              .replace(/(_resolveComponent\(.*)/g, '$1!')
+              .replace(/import _imports_(\d+) from '(.*)'/g, "const _imports_$1 = require('$2');")
+              .replace(
+                /\(\.\.\.args\) => \(.*?([^ ]*)\(\.\.\.args\)/g,
+                (_, x) => `(...args: Parameters<typeof ${x}>) => (${x}(...args)`
+              );
+          }
+        }
       }
     } else {
       throw new Error(
@@ -131,23 +209,28 @@ function createTypeScriptVueExtension(
       );
     }
 
+    let source;
+
     if (!script) {
       // No <script> block
-      return createVueNoScriptEmbeddedSource();
+      source = createVueNoScriptEmbeddedSource();
     } else if (script.attrs.src) {
       // <script src="file.ts" /> block
-      if (typeof script.attrs.src === 'string') {
-        return createVueSrcScriptEmbeddedSource(script.attrs.src, script.attrs.lang);
-      }
+      source = createVueSrcScriptEmbeddedSource(script.attrs.src as string, script.attrs.lang);
     } else {
       // <script lang="ts"></script> block
       // pad blank lines to retain diagnostics location
       const lineOffset = vueSourceText.slice(0, script.start).split(/\r?\n/g).length;
-      const paddedSourceText =
-        Array(lineOffset).join('\n') + vueSourceText.slice(script.start, script.end);
+      const paddedSourceText = Array(lineOffset).join('\n') + script.content;
 
-      return createVueInlineScriptEmbeddedSource(paddedSourceText, script.attrs.lang);
+      source = createVueInlineScriptEmbeddedSource(paddedSourceText, script.attrs.lang);
     }
+
+    if (template) {
+      source.realEnd = source.sourceText.length;
+      source.sourceText += template;
+    }
+    return source;
   }
 
   return createTypeScriptEmbeddedExtension({

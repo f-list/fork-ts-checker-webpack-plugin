@@ -1,28 +1,19 @@
 import * as os from 'os';
-import mockFs from 'mock-fs';
 import { Issue } from 'lib/issue';
 import { createCodeFrameFormatter } from 'lib/formatter';
 
+const src = {
+  'index.ts': [
+    'const foo: number = "1";',
+    'const bar = 1;',
+    '',
+    'function baz() {',
+    '  console.log(baz);',
+    '}',
+  ].join('\n'),
+};
+
 describe('formatter/CodeFrameFormatter', () => {
-  beforeEach(() => {
-    mockFs({
-      src: {
-        'index.ts': [
-          'const foo: number = "1";',
-          'const bar = 1;',
-          '',
-          'function baz() {',
-          '  console.log(baz);',
-          '}',
-        ].join('\n'),
-      },
-    });
-  });
-
-  afterEach(() => {
-    mockFs.restore();
-  });
-
   it.each([
     [
       {
@@ -31,6 +22,7 @@ describe('formatter/CodeFrameFormatter', () => {
         code: 'TS2322',
         message: `Type '"1"' is not assignable to type 'number'.`,
         file: 'src/index.ts',
+        source: src['index.ts'],
         location: {
           start: {
             line: 1,
@@ -56,6 +48,7 @@ describe('formatter/CodeFrameFormatter', () => {
         code: 'TS2322',
         message: `Type '"1"' is not assignable to type 'number'.`,
         file: 'src/index.ts',
+        source: src['index.ts'],
       },
       `TS2322: Type '"1"' is not assignable to type 'number'.`,
     ],
@@ -66,6 +59,7 @@ describe('formatter/CodeFrameFormatter', () => {
         code: 'TS2322',
         message: `Type '"1"' is not assignable to type 'number'.`,
         file: 'src/index.ts',
+        source: src['index.ts'],
         location: {
           start: {
             line: 1,
@@ -107,6 +101,7 @@ describe('formatter/CodeFrameFormatter', () => {
         code: 'no-unused-vars',
         message: `'bar' is assigned a value but never used.`,
         file: 'src/index.ts',
+        source: src['index.ts'],
         location: {
           start: {
             line: 2,
